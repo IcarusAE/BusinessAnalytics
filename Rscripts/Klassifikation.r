@@ -11,6 +11,9 @@ library(ISLR)
 data("Default")
 default <- as_tibble(Default)
 
+default <- default %>% 
+  mutate(default = fct_relevel(default, c("Yes", "No")))
+
 
 # 4.2 Split the data
 #<############################################################################>
@@ -18,7 +21,7 @@ default <- as_tibble(Default)
 set.seed(123)
 default_split <- initial_split(default, strata = default)
 default_train <- training(default_split)
-default_test <- testing(default_split)
+
 
 default_cv <- vfold_cv(default_train)
 
@@ -54,6 +57,7 @@ default_wf <- workflow() %>%
 
 default_rs <- default_wf %>% 
   fit_resamples(resamples = default_cv,
+                metrics = metric_set(accuracy,roc_auc, sens, precision, f_meas, kap),
                 control = control_resamples(save_pred = TRUE, verbose=TRUE))
 
 
@@ -87,7 +91,7 @@ default_rs %>%
 default_rs %>% 
   collect_predictions() %>% 
   group_by(id) %>%   #id ist hier die die der bootraps: jeder kriegt eine line 
-  roc_curve(default, .pred_No) %>% 
+  roc_curve(default, .pred_Yes) %>% 
   ggplot(aes(1- specificity, sensitivity, color=id))+
   geom_abline(lty = 2, color="gray80", size=1.5)+
   geom_path(show.legend = FALSE, alpha = 0.6, size = 1.2)+
@@ -100,12 +104,16 @@ default_rs %>%
 # 4.8.1 Training und test
 #<====================================================>
 default_final <- default_wf %>% 
-  last_fit(default_split)
+  last_fit(
+    default_split,
+    metrics = metric_set(accuracy,roc_auc, sens, precision, f_meas, kap)
+    )
 
 
 # 4.8.2 Extraktion der performance Metriken
 #<====================================================>
-default_final %>% collect_metrics()
+default_final %>% 
+  collect_metrics()
 
 
 # 4.8.3 Confusion matrix
@@ -119,7 +127,7 @@ default_final %>%
 #<====================================================>
 default_final %>%
   collect_predictions() %>% 
-  roc_curve(default, .pred_No) %>%
+  roc_curve(default, .pred_Yes) %>%
   ggplot(aes(x = 1 - specificity, y = sensitivity)) +
   geom_line(size = 1.5) +
   geom_abline(
