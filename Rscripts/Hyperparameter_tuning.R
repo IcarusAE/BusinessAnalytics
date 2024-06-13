@@ -12,6 +12,11 @@ data("Default")
 default <- as_tibble(Default)
 
 
+default <- default %>% 
+  mutate(default = fct_relevel(default, c("Yes", "No")))
+
+
+
 # 5.2.2 Split the data
 #<############################################################################>
 
@@ -106,8 +111,9 @@ knn_grid3
 default_rs <-  
   tune_grid(
     default_wf,
-    grid = knn_grid2,
+    grid = knn_grid2,   #Angelegtes Grid (Wertebereich des Neighbors-HP)
     resamples = default_cv,
+    metrics = metric_set(roc_auc, sens, f_meas, kap), #Gewünschtes set
     control = control_resamples(save_pred = TRUE, verbose=TRUE))
 
 
@@ -165,7 +171,7 @@ default_rs %>%
   collect_predictions() %>% 
   filter(neighbors==50) %>%  # Auswahl des besten Modells
   group_by(id) %>%   #id ist hier die die der bootraps: jeder kriegt eine line 
-  roc_curve(default, .pred_No) %>% 
+  roc_curve(default, .pred_Yes) %>% 
   ggplot(aes(1- specificity, sensitivity, color=id))+
   geom_abline(lty = 2, color="gray80", size=1.5)+
   geom_path(show.legend = FALSE, alpha = 0.6, size = 1.2)+
@@ -191,7 +197,10 @@ final_default_wf
 # 5.7 The final test
 #<############################################################################>
 final_default_rs <- final_default_wf %>% 
-  last_fit(default_split)
+  last_fit(
+    default_split,
+    metrics = metric_set(roc_auc, sens, f_meas, kap)
+  )
 
 # Extraktion der performance Metriken
 final_default_rs %>% 
@@ -208,7 +217,7 @@ final_default_rs %>%
 #ROC curve TEST
 final_default_rs %>%
   collect_predictions() %>% 
-  roc_curve(default, .pred_No) %>%
+  roc_curve(default, .pred_Yes) %>%
   ggplot(aes(x = 1 - specificity, y = sensitivity)) +
   geom_path(size = 1) +
   geom_abline(
